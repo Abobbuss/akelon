@@ -1,0 +1,11 @@
+C:\Users\me\me\Work\CSharp\akelon\akelon\bin\Debug\akelon.exe.config
+C:\Users\me\me\Work\CSharp\akelon\akelon\bin\Debug\akelon.exe
+C:\Users\me\me\Work\CSharp\akelon\akelon\bin\Debug\akelon.pdb
+C:\Users\me\me\Work\CSharp\akelon\akelon\bin\Debug\DocumentFormat.OpenXml.dll
+C:\Users\me\me\Work\CSharp\akelon\akelon\bin\Debug\System.IO.Packaging.dll
+C:\Users\me\me\Work\CSharp\akelon\akelon\bin\Debug\DocumentFormat.OpenXml.xml
+C:\Users\me\me\Work\CSharp\akelon\akelon\obj\Debug\akelon.csproj.AssemblyReference.cache
+C:\Users\me\me\Work\CSharp\akelon\akelon\obj\Debug\akelon.csproj.CoreCompileInputs.cache
+C:\Users\me\me\Work\CSharp\akelon\akelon\obj\Debug\akelon.csproj.CopyComplete
+C:\Users\me\me\Work\CSharp\akelon\akelon\obj\Debug\akelon.exe
+C:\Users\me\me\Work\CSharp\akelon\akelon\obj\Debug\akelon.pdb
