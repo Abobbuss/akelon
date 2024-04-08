@@ -198,101 +198,185 @@ namespace akelon._data
             return columnName;
         }
 
+        private static Dictionary<string, string> GetProductDataByProductCode(WorkbookPart workbookPart, SheetData productSheetData, int productCodeIndex, string productCode)
+        {
+            Dictionary<string, string> productData = new Dictionary<string, string>();
+
+            var productPricePerUnitIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, ProductColumns.ListName, ProductColumns.PricePerUnit).columnIndex;
+            var productNameIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, ProductColumns.ListName, ProductColumns.ProductName).columnIndex;
+
+            foreach (var row in productSheetData.Elements<Row>().Skip(1))
+            {
+                string currentProductCode = GetCellValueByColumnAndRow(workbookPart, productSheetData, productCodeIndex, row);
+
+                if (currentProductCode == productCode)
+                {
+                    productData[ProductColumns.ProductName] = GetCellValueByColumnAndRow(workbookPart, productSheetData, productNameIndex, row);
+                    productData[ProductColumns.ProductCode] = currentProductCode;
+                    productData[ProductColumns.PricePerUnit] = GetCellValueByColumnAndRow(workbookPart, productSheetData, productPricePerUnitIndex, row);
+
+                    break;
+                }
+            }
+
+            return productData.Count > 0 ? productData : null;
+        }
+
+        private static Dictionary<string, string> GetOrderDataByOrderCode(WorkbookPart workbookPart, SheetData orderSheetData, int orderCodeIndex, string orderCode)
+        {
+            Dictionary<string, string> orderData = new Dictionary<string, string>();
+
+            var productCodeIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, OrderColumns.ListName, OrderColumns.ProductCode).columnIndex;
+            var clientCodeIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, OrderColumns.ListName, OrderColumns.ClientCode).columnIndex;
+            var quantityIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, OrderColumns.ListName, OrderColumns.RequiredQuantity).columnIndex;
+            var dateIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, OrderColumns.ListName, OrderColumns.PlacementDate).columnIndex;
+
+            foreach (var row in orderSheetData.Elements<Row>().Skip(1))
+            {
+                string currentOrderCode = GetCellValueByColumnAndRow(workbookPart, orderSheetData, orderCodeIndex, row);
+
+                if (currentOrderCode == orderCode)
+                {
+                    orderData[OrderColumns.ProductCode] = GetCellValueByColumnAndRow(workbookPart, orderSheetData, productCodeIndex, row);
+                    orderData[OrderColumns.ClientCode] = GetCellValueByColumnAndRow(workbookPart, orderSheetData, clientCodeIndex, row);
+                    orderData[OrderColumns.RequiredQuantity] = GetCellValueByColumnAndRow(workbookPart, orderSheetData, quantityIndex, row);
+
+                    string orderDateString = GetCellValueByColumnAndRow(workbookPart, orderSheetData, dateIndex, row);
+                    DateTime? orderDate = null;
+
+                    if (!string.IsNullOrEmpty(orderDateString))
+                    {
+                        double excelDateValue;
+
+                        if (double.TryParse(orderDateString, out excelDateValue))
+                            orderDate = DateTime.FromOADate(excelDateValue);
+                        else
+                            Console.WriteLine("Неверный формат даты.");
+                    }
+
+                    orderData[OrderColumns.PlacementDate] = orderDate?.ToString("dd.MM.yyyy");
+
+                    break;
+                }
+            }
+
+            return orderData.Count > 0 ? orderData : null;
+        }
+
+        private static string GetProductCodeByProductName(WorkbookPart workbookPart, SheetData productSheetData, string productName)
+        {
+            var productNameIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, ProductColumns.ListName, ProductColumns.ProductName).columnIndex;
+            var productCodeIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, ProductColumns.ListName, ProductColumns.ProductCode).columnIndex;
+
+            foreach (var row in productSheetData.Elements<Row>().Skip(1))
+            {
+                string currentProductName = GetCellValueByColumnAndRow(workbookPart, productSheetData, productNameIndex, row);
+
+                if (currentProductName == productName)
+                    return GetCellValueByColumnAndRow(workbookPart, productSheetData, productCodeIndex, row);
+            }
+
+            return null;
+        }
+
+        private static string GetClientNameByCode(WorkbookPart workbookPart, SheetData clientSheetData, string clientCode)
+        {
+            var clientCodeIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, ClientColumns.ListName, ClientColumns.ClientCode).columnIndex;
+
+            foreach (var row in clientSheetData.Elements<Row>().Skip(1))
+            {
+                string currentClientCode = GetCellValueByColumnAndRow(workbookPart, clientSheetData, clientCodeIndex, row);
+
+                if (currentClientCode == clientCode)
+                {
+                    var clientOrganizationNameIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, ClientColumns.ListName, ClientColumns.OrganizationName).columnIndex;
+
+                    return GetCellValueByColumnAndRow(workbookPart, clientSheetData, clientOrganizationNameIndex, row);
+                }
+            }
+
+            return null;
+        }
+
+        private static List<string> GetClientsWithMaxOrders(Dictionary<string, int> clientOrdersCount)
+        {
+            List<string> goldenClients = new List<string>();
+            int maxOrders = 0;
+
+            foreach (var kvp in clientOrdersCount)
+            {
+                if (kvp.Value > maxOrders)
+                {
+                    maxOrders = kvp.Value;
+                    goldenClients.Clear();
+                    goldenClients.Add(kvp.Key);
+                }
+                else if (kvp.Value == maxOrders)
+                {
+                    goldenClients.Add(kvp.Key);
+                }
+            }
+
+            return goldenClients;
+        }
+
         public static void GetOrderInfoByProductName(string filePath, string productName)
         {
             using (SpreadsheetDocument spreadsheetDocument = SpreadsheetDocument.Open(filePath, false))
             {
                 WorkbookPart workbookPart = spreadsheetDocument.WorkbookPart;
 
-                var productPricePerUnitIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, ProductColumns.ListName, ProductColumns.PricePerUnit).columnIndex;
-                var productCodeIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, ProductColumns.ListName, ProductColumns.ProductCode).columnIndex;
-                var productSheetInfo = GetColumnIndexAndSheetDataByColumnName(workbookPart, ProductColumns.ListName, ProductColumns.ProductName);
-                var productNameIndex = productSheetInfo.columnIndex;
-                var productSheetData = productSheetInfo.sheetData;
+                var (productNameIndex, productSheetData) = GetColumnIndexAndSheetDataByColumnName(workbookPart, ProductColumns.ListName, ProductColumns.ProductName);
+                var (orderProductCodeIndex, orderSheetData) = GetColumnIndexAndSheetDataByColumnName(workbookPart, OrderColumns.ListName, OrderColumns.ProductCode);
+                var (orderClientIndex, _) = GetColumnIndexAndSheetDataByColumnName(workbookPart, OrderColumns.ListName, OrderColumns.ClientCode);
+                var (_, clientSheetData) = GetColumnIndexAndSheetDataByColumnName(workbookPart, ClientColumns.ListName, ClientColumns.ClientCode);
+                var (_, clientOrganizationNameIndex) = GetColumnIndexAndSheetDataByColumnName(workbookPart, ClientColumns.ListName, ClientColumns.OrganizationName);
 
-                var quantityIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, OrderColumns.ListName, OrderColumns.RequiredQuantity).columnIndex;
-                var dateIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, OrderColumns.ListName, OrderColumns.PlacementDate).columnIndex;
-                var orderClientIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, OrderColumns.ListName, OrderColumns.ClientCode).columnIndex;
-                var orderSheetInfo = GetColumnIndexAndSheetDataByColumnName(workbookPart, OrderColumns.ListName, OrderColumns.ProductCode);
-                var orderProductCodeIndex = orderSheetInfo.columnIndex;
-                var orderSheetData = orderSheetInfo.sheetData;
+                string productCode = GetProductCodeByProductName(workbookPart, productSheetData, productName);
+                Dictionary<string, string> productData = GetProductDataByProductCode(workbookPart, productSheetData, productNameIndex, productName);
 
-                var clientOrganizationNameIndex = GetColumnIndexAndSheetDataByColumnName(workbookPart, ClientColumns.ListName, ClientColumns.OrganizationName).columnIndex;
-                var clientSheetInfo = GetColumnIndexAndSheetDataByColumnName(workbookPart, ClientColumns.ListName, ClientColumns.ClientCode);
-                var clientCodeIndex = clientSheetInfo.columnIndex;
-                var clientSheetData = clientSheetInfo.sheetData;
-
-                if (productNameIndex != -1 && productSheetData != null)
+                if (productData != null)
                 {
-                    bool productFound = false;
+                    string pricePerUnit = productData[ProductColumns.PricePerUnit];
 
-                    foreach (Row row in productSheetData.Elements<Row>().Skip(1))
+                    foreach (Row orderRow in orderSheetData.Elements<Row>().Skip(1))
                     {
-                        string currentProductName = GetCellValueByColumnAndRow(workbookPart, productSheetData, productNameIndex, row);
+                        string orderProductCode = GetCellValueByColumnAndRow(workbookPart, orderSheetData, orderProductCodeIndex, orderRow);
 
-                        if (currentProductName == productName)
+                        if (orderProductCode == productCode)
                         {
-                            productFound = true;
-                            string productCode = GetCellValueByColumnAndRow(workbookPart, productSheetData, productCodeIndex, row);
+                            string orderClientCode = GetCellValueByColumnAndRow(workbookPart, orderSheetData, orderClientIndex, orderRow);
+                            Dictionary<string, string> orderData = GetOrderDataByOrderCode(workbookPart, orderSheetData, orderProductCodeIndex, orderProductCode);
 
-                            foreach (Row orderRow in orderSheetData.Elements<Row>().Skip(1))
+                            if (orderData != null)
                             {
-                                string orderProductCode = GetCellValueByColumnAndRow(workbookPart, orderSheetData, orderProductCodeIndex, orderRow);
+                                string clientName = GetClientNameByCode(workbookPart, clientSheetData, orderClientCode);
 
-                                if (orderProductCode == productCode)
+                                if (clientName != null)
                                 {
-                                    string ordeClientCode = GetCellValueByColumnAndRow(workbookPart, orderSheetData, orderClientIndex, orderRow);
+                                    int quantity = int.Parse(orderData[OrderColumns.RequiredQuantity]);
+                                    double price = quantity * double.Parse(pricePerUnit);
+                                    string orderDateString = orderData[OrderColumns.PlacementDate];
 
-                                    foreach (Row clientRow in clientSheetData.Elements<Row>().Skip(1))
-                                    {
-                                        string clientСode = GetCellValueByColumnAndRow(workbookPart, clientSheetData, clientCodeIndex, clientRow);
-
-                                        if (clientСode == ordeClientCode)
-                                        {
-                                            int quantity = int.Parse(GetCellValueByColumnAndRow(workbookPart, orderSheetData, quantityIndex, orderRow));
-                                            double pricePerUnit = double.Parse(GetCellValueByColumnAndRow(workbookPart, productSheetData, productPricePerUnitIndex, row));
-                                            string orderDateString = GetCellValueByColumnAndRow(workbookPart, orderSheetData, dateIndex, orderRow).ToString();
-                                            double price = quantity * pricePerUnit;
-                                            DateTime? orderDate = null;
-
-                                            if (!string.IsNullOrEmpty(orderDateString))
-                                            {
-                                                double excelDateValue;
-
-                                                if (double.TryParse(orderDateString, out excelDateValue))
-                                                    orderDate = DateTime.FromOADate(excelDateValue);
-                                                else
-                                                    Console.WriteLine("Неверный формат даты.");
-                                            }
-
-                                            string clientName = GetCellValueByColumnAndRow(workbookPart, clientSheetData, clientOrganizationNameIndex, clientRow);
-
-                                            Console.WriteLine($"\nЗаказ на продукт: {currentProductName}" +
-                                                $"\nКоличество: {quantity}, Цена за еденицу: {pricePerUnit}, итоговая цена - {price}." +
-                                                $" Дата: {orderDate?.ToString("dd.MM.yyyy")}, Клиент: {clientName}");
-                                        }
-                                    }
+                                    Console.WriteLine($"\nЗаказ на продукт: {productName}" +
+                                        $"\nКоличество: {quantity}, Цена за единицу: {pricePerUnit}, Итоговая цена: {price}" +
+                                        $" Дата: {orderDateString}, Клиент: {clientName}");
                                 }
                             }
-                        }
-                    }
-
-                    if (!productFound)
-                    {
-                        Console.WriteLine($"Продукт с наименованием \"{productName}\" не найден.");
-
-                        Console.WriteLine("\nДоступные продукты для поиска:");
-                        List<string> allProducts = GetDataByColumn(spreadsheetDocument, ProductColumns.ListName, ProductColumns.ProductName);
-
-                        foreach (var organization in allProducts)
-                        {
-                            Console.WriteLine(organization);
                         }
                     }
                 }
                 else
                 {
-                    Console.WriteLine("Столбец с названием \"{0}\" не найден на листе \"{1}\".", ProductColumns.ProductName, ProductColumns.ListName);
+                    Console.WriteLine($"Продукт с наименованием \"{productName}\" не найден.");
+
+                    Console.WriteLine("\nДоступные продукты для поиска:");
+                    List<string> allProducts = GetDataByColumn(spreadsheetDocument, ProductColumns.ListName, ProductColumns.ProductName);
+
+                    foreach (var product in allProducts)
+                    {
+                        Console.WriteLine(product);
+                    }
                 }
             }
         }
@@ -303,9 +387,7 @@ namespace akelon._data
             {
                 WorkbookPart workbookPart = spreadsheetDocument.WorkbookPart;
 
-                var clientSheetInfo = GetColumnIndexAndSheetDataByColumnName(workbookPart, ClientColumns.ListName, ClientColumns.OrganizationName);
-                var clientOrganizationNameIndex = clientSheetInfo.columnIndex;
-                var clientSheetData = clientSheetInfo.sheetData;
+                var (clientOrganizationNameIndex, clientSheetData) = GetColumnIndexAndSheetDataByColumnName(workbookPart, ClientColumns.ListName, ClientColumns.OrganizationName);
 
                 if (clientOrganizationNameIndex != -1 && clientSheetData != null)
                 {
@@ -355,11 +437,8 @@ namespace akelon._data
             {
                 WorkbookPart workbookPart = spreadsheetDocument.WorkbookPart;
 
-                var orderSheetInfo = GetColumnIndexAndSheetDataByColumnName(workbookPart, OrderColumns.ListName, OrderColumns.ClientCode);
-                var orderClientCodeIndex = orderSheetInfo.columnIndex;
-                var orderSheetData = orderSheetInfo.sheetData;
-                var OrderDateInfo = GetColumnIndexAndSheetDataByColumnName(workbookPart, OrderColumns.ListName, OrderColumns.PlacementDate);
-                var orderDateIndex = OrderDateInfo.columnIndex;
+                var (orderClientCodeIndex, orderSheetData) = GetColumnIndexAndSheetDataByColumnName(workbookPart, OrderColumns.ListName, OrderColumns.ClientCode);
+                var (orderDateIndex, _) = GetColumnIndexAndSheetDataByColumnName(workbookPart, OrderColumns.ListName, OrderColumns.PlacementDate);
 
                 Dictionary<string, int> clientOrdersCount = new Dictionary<string, int>();
 
@@ -392,24 +471,11 @@ namespace akelon._data
                 else
                 {
                     Console.WriteLine("Не удалось найти необходимые столбцы на листе заказов.");
+
                     return null;
                 }
 
-                List<string> goldenClients = new List<string>();
-                int maxOrders = 0;
-                foreach (var kvp in clientOrdersCount)
-                {
-                    if (kvp.Value > maxOrders)
-                    {
-                        maxOrders = kvp.Value;
-                        goldenClients.Clear(); // Очищаем список, если найден клиент с большим количеством заказов
-                        goldenClients.Add(kvp.Key);
-                    }
-                    else if (kvp.Value == maxOrders)
-                    {
-                        goldenClients.Add(kvp.Key); // Добавляем клиента с максимальным количеством заказов в список
-                    }
-                }
+                List<string> goldenClients = GetClientsWithMaxOrders(clientOrdersCount);
 
                 return goldenClients;
             }

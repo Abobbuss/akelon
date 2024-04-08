@@ -20,9 +20,7 @@ namespace akelon
 
             while (true)
             {
-                Console.WriteLine("Здравствуйте!\n" +
-                    "Введите путь до файла Excel");
-
+                Console.WriteLine("Здравствуйте!\nВведите путь до файла Excel");
                 filePath = Console.ReadLine();
 
                 if (File.Exists(filePath) && Path.GetExtension(filePath).Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
